@@ -283,6 +283,148 @@
       border: 1px solid #fecaca;
     }
 
+    /* Modal de Aviso de Obra por E-mail (GESMA) */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      background: rgba(15, 23, 42, 0.58);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 14px;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-box {
+      background: #ffffff;
+      border-radius: 14px;
+      width: min(470px, 100%);
+      max-height: 92dvh;
+      overflow-y: auto;
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.35);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header {
+      background: linear-gradient(90deg, var(--azul-escuro), var(--azul-msgas));
+      color: #ffffff;
+      padding: 13px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .modal-title {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .modal-subtitle {
+      font-size: 11.5px;
+      opacity: 0.9;
+      margin-top: 2px;
+    }
+
+    .modal-close {
+      border: none;
+      background: rgba(255, 255, 255, 0.16);
+      color: #ffffff;
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .modal-body {
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+    }
+
+    .modal-resumo {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 9px 11px;
+      font-size: 12px;
+      color: #334155;
+      line-height: 1.4;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .field-group label {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .field-group input,
+    .field-group select {
+      width: 100%;
+      padding: 10px 11px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      font-size: 14px;
+      color: #0f172a;
+      background: #ffffff;
+      outline: none;
+    }
+
+    .field-group input:focus,
+    .field-group select:focus {
+      border-color: var(--azul-msgas);
+      box-shadow: 0 0 0 3px rgba(0, 84, 158, 0.14);
+    }
+
+    .modal-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .modal-btn-main {
+      width: 100%;
+      border: none;
+      border-radius: 9px;
+      padding: 12px 14px;
+      background: var(--azul-msgas);
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .modal-btn-main:hover {
+      background: var(--azul-escuro);
+    }
+
+    .modal-actions-secondary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .modal-actions-secondary button {
+      flex: 1 1 auto;
+      justify-content: center;
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+
     /* Barra de botões flutuantes canto inferior direito */
     .fab-dock {
       position: absolute;
@@ -604,9 +746,9 @@
           <div id="gpsProximityBadge" class="gps-proximity safe" style="display:none;"></div>
           <div id="gpsCardText"></div>
           <div class="info-card-actions">
-            <button type="button" class="mini-btn mini-btn-primary" id="btnCopyMessage">📋 Copiar Mensagem</button>
-            <a id="linkShareWhatsApp" class="mini-btn mini-btn-wa" href="#" target="_blank" rel="noopener">💬 WhatsApp</a>
-            <button type="button" class="mini-btn" id="btnCopyCoords">Copiar coord.</button>
+            <button type="button" class="mini-btn mini-btn-primary" id="btnOpenEmailModal">✉️ Enviar E-mail (GESMA)</button>
+            <button type="button" class="mini-btn" id="btnCopyMessage">📋 Copiar</button>
+            <button type="button" class="mini-btn" id="btnCopyCoords">Coord.</button>
           </div>
         </div>
 
@@ -655,6 +797,60 @@
     <footer class="footer-bar">
       <span>Fonte da rede: <strong>nossarede.msgas.com.br/showmapa</strong> · Mapa: OpenStreetMap / Esri</span>
     </footer>
+  </div>
+
+  <!-- Modal de Aviso de Obra por E-mail para GESMA -->
+  <div id="emailModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="emailModalTitle">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title" id="emailModalTitle">✉️ Aviso de Obra — GESMA</div>
+          <div class="modal-subtitle">Destino: gesma@msgas.com.br</div>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseEmailModal" aria-label="Fechar formulário">✕</button>
+      </div>
+      <form id="emailForm" class="modal-body" novalidate>
+        <div id="modalLocalResumo" class="modal-resumo"></div>
+
+        <div class="field-group">
+          <label for="obraData">Data da obra *</label>
+          <input id="obraData" type="date" required />
+        </div>
+
+        <div class="field-group">
+          <label for="obraEmpresa">Nome da empresa *</label>
+          <input id="obraEmpresa" type="text" placeholder="Ex.: Construtora / Concessionária" required />
+        </div>
+
+        <div class="field-group">
+          <label for="obraTipo">Tipo de serviço *</label>
+          <select id="obraTipo" required>
+            <option value="">Selecione o tipo de serviço...</option>
+            <option value="Água">1) Água</option>
+            <option value="Esgoto">2) Esgoto</option>
+            <option value="Telefonia/Fibra Ótica">3) Telefonia/Fibra Ótica</option>
+            <option value="Drenagem Urbana">4) Drenagem Urbana</option>
+            <option value="Rede Elétrica">5) Rede Elétrica</option>
+            <option value="Sinalização Vertical">6) Sinalização Vertical</option>
+            <option value="Outros">7) Outros (especificar)</option>
+          </select>
+        </div>
+
+        <div class="field-group" id="obraOutrosGroup" style="display:none;">
+          <label for="obraOutrosTexto">Especifique o tipo de serviço *</label>
+          <input id="obraOutrosTexto" type="text" placeholder="Descreva qual serviço será executado" />
+        </div>
+
+        <div class="modal-actions">
+          <button type="submit" class="modal-btn-main" id="btnSendEmailPrimary">✉️ Enviar E-mail para GESMA</button>
+          <div class="modal-actions-secondary" id="desktopEmailOptions">
+            <button type="button" class="mini-btn" id="btnOpenGmail">🌐 Gmail (aba)</button>
+            <button type="button" class="mini-btn" id="btnOpenMailtoApp">📧 App E-mail (Outlook)</button>
+            <button type="button" class="mini-btn" id="btnCopyEmailBody">📋 Copiar texto</button>
+          </div>
+        </div>
+      </form>
+    </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
@@ -729,9 +925,24 @@
       const gpsProximityBadge = document.getElementById("gpsProximityBadge");
       const gpsCardText = document.getElementById("gpsCardText");
       const btnCloseGpsCard = document.getElementById("btnCloseGpsCard");
+      const btnOpenEmailModal = document.getElementById("btnOpenEmailModal");
       const btnCopyMessage = document.getElementById("btnCopyMessage");
-      const linkShareWhatsApp = document.getElementById("linkShareWhatsApp");
       const btnCopyCoords = document.getElementById("btnCopyCoords");
+
+      const emailModal = document.getElementById("emailModal");
+      const btnCloseEmailModal = document.getElementById("btnCloseEmailModal");
+      const emailForm = document.getElementById("emailForm");
+      const modalLocalResumo = document.getElementById("modalLocalResumo");
+      const obraDataInput = document.getElementById("obraData");
+      const obraEmpresaInput = document.getElementById("obraEmpresa");
+      const obraTipoSelect = document.getElementById("obraTipo");
+      const obraOutrosGroup = document.getElementById("obraOutrosGroup");
+      const obraOutrosTexto = document.getElementById("obraOutrosTexto");
+      const btnSendEmailPrimary = document.getElementById("btnSendEmailPrimary");
+      const btnOpenGmail = document.getElementById("btnOpenGmail");
+      const btnOpenMailtoApp = document.getElementById("btnOpenMailtoApp");
+      const btnCopyEmailBody = document.getElementById("btnCopyEmailBody");
+      const EMAIL_DESTINO_GESMA = "gesma@msgas.com.br";
 
       let toastTimer = null;
       function showToast(msg, type) {
@@ -955,9 +1166,10 @@
           gpsProximityBadge.style.display = "none";
         }
 
-        const msgPronta = montarMensagemObra(lastCoords);
-        linkShareWhatsApp.href = "https://wa.me/?text=" + encodeURIComponent(msgPronta);
         gpsCard.classList.add("visible");
+        if (emailModal.classList.contains("open")) {
+          atualizarResumoModal();
+        }
       }
 
       async function buscarEnderecoReverso(lat, lng, seqId) {
@@ -1181,14 +1393,245 @@
       btnWatchGps.addEventListener("click", alternarAcompanhamentoGps);
       btnCloseGpsCard.addEventListener("click", () => gpsCard.classList.remove("visible"));
 
+      function ehDispositivoMovel() {
+        return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+      }
+
+      function formatarDataBr(isoDate) {
+        if (!isoDate || !isoDate.includes("-")) return isoDate || "";
+        const p = isoDate.split("-");
+        return p[2] + "/" + p[1] + "/" + p[0];
+      }
+
+      function atualizarResumoModal() {
+        if (!lastCoords) return;
+        const coordTxt = lastCoords.lat.toFixed(6) + "," + lastCoords.lng.toFixed(6);
+        const localTxt = lastCoords.endereco || "Coordenadas " + coordTxt;
+        const distTxt =
+          typeof lastCoords.distMetros === "number"
+            ? formatarDistanciaCurta(lastCoords.distMetros)
+            : "não calculada";
+        const perto =
+          typeof lastCoords.distMetros === "number" &&
+          lastCoords.distMetros <= RAIO_PROXIMIDADE_METROS;
+        modalLocalResumo.textContent =
+          "Local: " +
+          localTxt +
+          " | " +
+          (perto
+            ? "Atenção: tubulação próxima (~" + distTxt + ")"
+            : "Sem tubulação aparente próxima (mais próxima a ~" + distTxt + ")");
+      }
+
+      function abrirModalEmail() {
+        if (!lastCoords) {
+          showToast("Primeiro clique em Puxar Localização ou busque um local.", "error");
+          return;
+        }
+        if (!obraDataInput.value) {
+          const hoje = new Date();
+          const yyyy = hoje.getFullYear();
+          const mm = String(hoje.getMonth() + 1).padStart(2, "0");
+          const dd = String(hoje.getDate()).padStart(2, "0");
+          obraDataInput.value = yyyy + "-" + mm + "-" + dd;
+        }
+        atualizarResumoModal();
+        const mobile = ehDispositivoMovel();
+        btnSendEmailPrimary.textContent = mobile
+          ? "✉️ Abrir no App de E-mail"
+          : "🌐 Abrir no Outlook Web (nova aba)";
+        btnOpenGmail.style.display = mobile ? "none" : "inline-flex";
+        btnOpenMailtoApp.style.display = mobile ? "none" : "inline-flex";
+        emailModal.classList.add("open");
+      }
+
+      function fecharModalEmail() {
+        emailModal.classList.remove("open");
+      }
+
+      function validarEConstruirEmail() {
+        if (!lastCoords) {
+          showToast("Localização não definida.", "error");
+          return null;
+        }
+        const dataVal = obraDataInput.value.trim();
+        const empresaVal = obraEmpresaInput.value.trim();
+        const tipoVal = obraTipoSelect.value.trim();
+        const outrosVal = obraOutrosTexto.value.trim();
+
+        if (!dataVal) {
+          showToast("Informe a data da obra.", "error");
+          obraDataInput.focus();
+          return null;
+        }
+        if (!empresaVal) {
+          showToast("Informe o nome da empresa.", "error");
+          obraEmpresaInput.focus();
+          return null;
+        }
+        if (!tipoVal) {
+          showToast("Selecione o tipo de serviço.", "error");
+          obraTipoSelect.focus();
+          return null;
+        }
+        if (tipoVal === "Outros" && !outrosVal) {
+          showToast("Especifique o tipo de serviço no campo 'Outros'.", "error");
+          obraOutrosTexto.focus();
+          return null;
+        }
+
+        const dataBr = formatarDataBr(dataVal);
+        const servicoFinal = tipoVal === "Outros" ? "Outros - " + outrosVal : tipoVal;
+        const coordTxt = lastCoords.lat.toFixed(6) + "," + lastCoords.lng.toFixed(6);
+        const localTxt = lastCoords.endereco || "coordenadas " + coordTxt;
+        const distTxt =
+          typeof lastCoords.distMetros === "number"
+            ? formatarDistanciaCurta(lastCoords.distMetros)
+            : "distância não calculada";
+        const linkMapa = gerarLinkMapaObra(lastCoords.lat, lastCoords.lng);
+        const perto =
+          typeof lastCoords.distMetros === "number" &&
+          lastCoords.distMetros <= RAIO_PROXIMIDADE_METROS;
+
+        const situacaoRede = perto
+          ? "ATENÇÃO: Conforme consulta ao mapa representativo da rede de gás natural da MSGÁS, há tubulação de gás natural próxima ao local, a aproximadamente " +
+            distTxt +
+            " de distância. Solicita-se orientação preventiva antes da escavação."
+          : "Conforme consulta ao mapa representativo da rede de gás natural da MSGÁS, não há tubulação aparente nas proximidades imediatas do local — a tubulação mais próxima registrada no mapa está a aproximadamente " +
+            distTxt +
+            ".";
+
+        const assunto =
+          "Aviso de Obra - " + empresaVal + " - " + servicoFinal + " - " + dataBr;
+
+        const corpo = [
+          "Olá, equipe GESMA!",
+          "",
+          "Informo a programação de obra conforme dados abaixo:",
+          "- Empresa: " + empresaVal,
+          "- Data da obra: " + dataBr,
+          "- Tipo de serviço: " + servicoFinal,
+          "- Endereço / Local: " + localTxt,
+          "- Coordenadas GPS: " + coordTxt,
+          "",
+          situacaoRede,
+          "",
+          "Ver local da obra no mapa da rede MSGÁS:",
+          linkMapa
+        ].join("\n");
+
+        return { para: EMAIL_DESTINO_GESMA, assunto, corpo };
+      }
+
+      function abrirMailto(dadosEmail) {
+        const url =
+          "mailto:" +
+          encodeURIComponent(dadosEmail.para) +
+          "?subject=" +
+          encodeURIComponent(dadosEmail.assunto) +
+          "&body=" +
+          encodeURIComponent(dadosEmail.corpo);
+        window.location.href = url;
+      }
+
+      function abrirOutlookWeb(dadosEmail) {
+        const url =
+          "https://outlook.office.com/mail/deeplink/compose?to=" +
+          encodeURIComponent(dadosEmail.para) +
+          "&subject=" +
+          encodeURIComponent(dadosEmail.assunto) +
+          "&body=" +
+          encodeURIComponent(dadosEmail.corpo);
+        window.open(url, "_blank", "noopener");
+      }
+
+      function abrirGmailWeb(dadosEmail) {
+        const url =
+          "https://mail.google.com/mail/?view=cm&fs=1&to=" +
+          encodeURIComponent(dadosEmail.para) +
+          "&su=" +
+          encodeURIComponent(dadosEmail.assunto) +
+          "&body=" +
+          encodeURIComponent(dadosEmail.corpo);
+        window.open(url, "_blank", "noopener");
+      }
+
+      obraTipoSelect.addEventListener("change", () => {
+        const isOutros = obraTipoSelect.value === "Outros";
+        obraOutrosGroup.style.display = isOutros ? "flex" : "none";
+        obraOutrosTexto.required = isOutros;
+        if (!isOutros) {
+          obraOutrosTexto.value = "";
+        } else {
+          obraOutrosTexto.focus();
+        }
+      });
+
+      btnOpenEmailModal.addEventListener("click", abrirModalEmail);
+      btnCloseEmailModal.addEventListener("click", fecharModalEmail);
+      emailModal.addEventListener("click", (e) => {
+        if (e.target === emailModal) fecharModalEmail();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && emailModal.classList.contains("open")) {
+          fecharModalEmail();
+        }
+      });
+
+      emailForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const dadosEmail = validarEConstruirEmail();
+        if (!dadosEmail) return;
+        if (ehDispositivoMovel()) {
+          abrirMailto(dadosEmail);
+        } else {
+          abrirOutlookWeb(dadosEmail);
+        }
+        fecharModalEmail();
+        showToast("E-mail preparado para " + EMAIL_DESTINO_GESMA + "!", "success");
+      });
+
+      btnOpenGmail.addEventListener("click", () => {
+        const dadosEmail = validarEConstruirEmail();
+        if (!dadosEmail) return;
+        abrirGmailWeb(dadosEmail);
+        fecharModalEmail();
+        showToast("Abrindo Gmail em nova aba...", "success");
+      });
+
+      btnOpenMailtoApp.addEventListener("click", () => {
+        const dadosEmail = validarEConstruirEmail();
+        if (!dadosEmail) return;
+        abrirMailto(dadosEmail);
+        fecharModalEmail();
+        showToast("Abrindo aplicativo de e-mail...", "success");
+      });
+
+      btnCopyEmailBody.addEventListener("click", async () => {
+        const dadosEmail = validarEConstruirEmail();
+        if (!dadosEmail) return;
+        const completo =
+          "Para: " +
+          dadosEmail.para +
+          "\nAssunto: " +
+          dadosEmail.assunto +
+          "\n\n" +
+          dadosEmail.corpo;
+        const ok = await copiarTextoSeguro(completo);
+        showToast(
+          ok ? "Texto do e-mail copiado!" : "Não foi possível copiar automaticamente.",
+          ok ? "success" : "error"
+        );
+      });
+
       btnCopyMessage.addEventListener("click", async () => {
         if (!lastCoords) return;
         const msg = montarMensagemObra(lastCoords);
         const ok = await copiarTextoSeguro(msg);
         if (ok) {
-          showToast("Mensagem de obra copiada! É só colar no WhatsApp.", "success");
+          showToast("Resumo da obra copiado!", "success");
         } else {
-          showToast("Não foi possível copiar automaticamente. Use o botão WhatsApp.", "error");
+          showToast("Não foi possível copiar automaticamente.", "error");
         }
       });
 
