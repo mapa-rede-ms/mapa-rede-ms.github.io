@@ -1,0 +1,1986 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Mapa da Rede de Gás Natural - MSGÁS (com GPS)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <style>
+    :root {
+      --azul-msgas: #00549e;
+      --azul-escuro: #003a70;
+      --azul-gps: #1a73e8;
+      --verde: #1e8e3e;
+      --amarelo: #f59e0b;
+      --roxo: #7c3aed;
+      --cinza-btn: #475569;
+      --fundo-card: rgba(255, 255, 255, 0.96);
+      --sombra: 0 4px 14px rgba(15, 23, 42, 0.22);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      overflow: hidden;
+      background: #e5e7eb;
+    }
+
+    .app-shell {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100dvh;
+    }
+
+    /* Cabeçalho estilo portal MSGÁS */
+    .topbar {
+      background: linear-gradient(90deg, var(--azul-escuro), var(--azul-msgas));
+      color: #ffffff;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 52px;
+      z-index: 1100;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .brand-badge {
+      font-weight: 800;
+      font-size: 16px;
+      letter-spacing: 0.6px;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 8px;
+      padding: 5px 10px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .rede-aviso {
+      font-size: 12px;
+      line-height: 1.3;
+      opacity: 0.96;
+    }
+
+    /* Área do mapa */
+    .map-stage {
+      position: relative;
+      flex: 1 1 auto;
+      width: 100%;
+      min-height: 0;
+    }
+
+    #mapa {
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* Barra de busca */
+    .search-panel {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 1000;
+      width: min(440px, calc(100vw - 24px));
+    }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      background: var(--fundo-card);
+      border-radius: 10px;
+      box-shadow: var(--sombra);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      overflow: hidden;
+    }
+
+    .search-box input {
+      flex: 1;
+      border: none;
+      outline: none;
+      padding: 11px 12px;
+      font-size: 14px;
+      background: transparent;
+      color: #0f172a;
+      min-width: 0;
+    }
+
+    .search-box button {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      padding: 10px 12px;
+      color: #334155;
+      font-size: 15px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .search-box button:hover {
+      background: rgba(15, 23, 42, 0.06);
+    }
+
+    .search-results {
+      margin-top: 6px;
+      background: var(--fundo-card);
+      border-radius: 10px;
+      box-shadow: var(--sombra);
+      max-height: 240px;
+      overflow-y: auto;
+      display: none;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+    }
+
+    .search-results.open {
+      display: block;
+    }
+
+    .search-item {
+      padding: 10px 12px;
+      font-size: 13px;
+      color: #1e293b;
+      cursor: pointer;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .search-item:last-child {
+      border-bottom: none;
+    }
+
+    .search-item:hover {
+      background: #eff6ff;
+    }
+
+    /* Card discreto de status GPS / Medição */
+    .info-pill-stack {
+      position: absolute;
+      left: 12px;
+      bottom: 14px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: min(330px, calc(100vw - 92px));
+      pointer-events: none;
+    }
+
+    .info-card {
+      pointer-events: auto;
+      background: var(--fundo-card);
+      border-radius: 10px;
+      padding: 10px 12px;
+      box-shadow: var(--sombra);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      font-size: 12.5px;
+      color: #0f172a;
+      display: none;
+    }
+
+    .info-card.visible {
+      display: block;
+    }
+
+    .info-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .info-card-close {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 15px;
+      color: #64748b;
+      padding: 0 4px;
+    }
+
+    .info-card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .mini-btn {
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #0f172a;
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .mini-btn:hover {
+      background: #e2e8f0;
+    }
+
+    .mini-btn-primary {
+      background: var(--azul-msgas);
+      border-color: var(--azul-msgas);
+      color: #ffffff;
+    }
+
+    .mini-btn-primary:hover {
+      background: var(--azul-escuro);
+    }
+
+    .mini-btn-wa {
+      background: #16a34a;
+      border-color: #16a34a;
+      color: #ffffff;
+    }
+
+    .mini-btn-wa:hover {
+      background: #15803d;
+    }
+
+    .gps-address {
+      font-size: 12px;
+      color: #334155;
+      margin-bottom: 5px;
+      line-height: 1.3;
+    }
+
+    .gps-proximity {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 8px;
+      border-radius: 7px;
+      margin: 5px 0;
+      line-height: 1.3;
+    }
+
+    .gps-proximity.safe {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+
+    .gps-proximity.warn {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+
+    /* Modal de Aviso de Obra por E-mail (GESMA) */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      background: rgba(15, 23, 42, 0.58);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 14px;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-box {
+      background: #ffffff;
+      border-radius: 14px;
+      width: min(470px, 100%);
+      max-height: 92dvh;
+      overflow-y: auto;
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.35);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header {
+      background: linear-gradient(90deg, var(--azul-escuro), var(--azul-msgas));
+      color: #ffffff;
+      padding: 13px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .modal-title {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .modal-subtitle {
+      font-size: 11.5px;
+      opacity: 0.9;
+      margin-top: 2px;
+    }
+
+    .modal-close {
+      border: none;
+      background: rgba(255, 255, 255, 0.16);
+      color: #ffffff;
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .modal-body {
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+    }
+
+    .modal-resumo {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 9px 11px;
+      font-size: 12px;
+      color: #334155;
+      line-height: 1.4;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .field-group label {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .field-group input,
+    .field-group select,
+    .field-group textarea {
+      width: 100%;
+      padding: 10px 11px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      font-size: 14px;
+      font-family: inherit;
+      color: #0f172a;
+      background: #ffffff;
+      outline: none;
+    }
+
+    .field-group textarea {
+      resize: vertical;
+      min-height: 76px;
+    }
+
+    .field-group input:focus,
+    .field-group select:focus,
+    .field-group textarea:focus {
+      border-color: var(--azul-msgas);
+      box-shadow: 0 0 0 3px rgba(0, 84, 158, 0.14);
+    }
+
+    .modal-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .modal-btn-main {
+      width: 100%;
+      border: none;
+      border-radius: 9px;
+      padding: 12px 14px;
+      background: var(--azul-msgas);
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .modal-btn-main:hover {
+      background: var(--azul-escuro);
+    }
+
+    .modal-actions-secondary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .modal-actions-secondary button {
+      flex: 1 1 auto;
+      justify-content: center;
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+
+    /* Barra de botões flutuantes canto inferior direito */
+    .fab-dock {
+      position: absolute;
+      right: 12px;
+      bottom: 14px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+    }
+
+    .gps-cta-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-gps-main {
+      background: var(--azul-gps);
+      color: #ffffff;
+      border: none;
+      border-radius: 999px;
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(26, 115, 232, 0.42);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: transform 0.12s ease, background 0.15s ease;
+    }
+
+    .btn-gps-main:hover {
+      background: #1557b0;
+    }
+
+    .btn-gps-main:active {
+      transform: scale(0.97);
+    }
+
+    .btn-gps-main.loading {
+      opacity: 0.85;
+      cursor: wait;
+    }
+
+    .btn-watch {
+      background: var(--fundo-card);
+      color: #0f172a;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: var(--sombra);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-watch.active {
+      background: var(--verde);
+      color: #ffffff;
+      border-color: var(--verde);
+    }
+
+    .tools-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .tool-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      border: none;
+      color: #ffffff;
+      cursor: pointer;
+      box-shadow: var(--sombra);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      position: relative;
+      transition: transform 0.12s ease, filter 0.15s ease;
+    }
+
+    .tool-btn:hover {
+      filter: brightness(1.08);
+    }
+
+    .tool-btn:active {
+      transform: scale(0.95);
+    }
+
+    .tool-btn.active-ring {
+      outline: 3px solid #ffffff;
+      box-shadow: 0 0 0 5px rgba(15, 23, 42, 0.35);
+    }
+
+    .btn-cidades { background: var(--cinza-btn); }
+    .btn-satelite { background: var(--amarelo); color: #111827; }
+    .btn-medir { background: var(--roxo); }
+    .btn-rotulos { background: #0284c7; }
+    .btn-rede { background: #000080; }
+
+    /* Menu de cidades */
+    .city-menu {
+      position: absolute;
+      right: 12px;
+      bottom: 126px;
+      z-index: 1050;
+      background: var(--fundo-card);
+      border-radius: 10px;
+      box-shadow: var(--sombra);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      min-width: 230px;
+      max-height: 55vh;
+      overflow-y: auto;
+      display: none;
+    }
+
+    .city-menu.open {
+      display: block;
+    }
+
+    .city-menu-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #64748b;
+      padding: 9px 12px 6px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .city-option {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: none;
+      background: transparent;
+      padding: 10px 12px;
+      font-size: 13.5px;
+      color: #0f172a;
+      cursor: pointer;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .city-option:hover {
+      background: #eff6ff;
+      color: var(--azul-msgas);
+      font-weight: 600;
+    }
+
+    /* Toast de feedback */
+    .toast {
+      position: absolute;
+      top: 66px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1200;
+      background: #0f172a;
+      color: #ffffff;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: var(--sombra);
+      max-width: min(460px, calc(100vw - 24px));
+      text-align: center;
+      display: none;
+    }
+
+    .toast.visible {
+      display: block;
+    }
+
+    .toast.error {
+      background: #b91c1c;
+    }
+
+    .toast.success {
+      background: #15803d;
+    }
+
+    /* Marcador pulsante GPS */
+    .gps-dot-wrapper {
+      position: relative;
+      width: 22px;
+      height: 22px;
+    }
+
+    .gps-dot-pulse {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: rgba(26, 115, 232, 0.35);
+      animation: gpsPulse 1.8s infinite ease-out;
+    }
+
+    .gps-dot-core {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #1a73e8;
+      border: 2.5px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+    }
+
+    @keyframes gpsPulse {
+      0% { transform: scale(0.9); opacity: 0.9; }
+      100% { transform: scale(2.4); opacity: 0; }
+    }
+
+    /* Rodapé */
+    .footer-bar {
+      background: #f8fafc;
+      border-top: 1px solid #cbd5e1;
+      color: #475569;
+      font-size: 11px;
+      padding: 5px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      z-index: 1100;
+    }
+
+    .footer-pill {
+      background: #e2e8f0;
+      color: #1e293b;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+
+    @media (max-width: 640px) {
+      .topbar {
+        padding: 6px 10px;
+        gap: 8px;
+      }
+      .brand-badge {
+        font-size: 13px;
+        padding: 4px 8px;
+      }
+      .rede-aviso {
+        font-size: 10.5px;
+        line-height: 1.25;
+      }
+      .search-panel {
+        top: 8px;
+        left: 8px;
+        width: calc(100vw - 16px);
+      }
+      .btn-gps-main {
+        padding: 11px 14px;
+        font-size: 13px;
+      }
+      .btn-watch span.label-txt {
+        display: none;
+      }
+      .info-pill-stack {
+        left: 8px;
+        bottom: 112px;
+        max-width: calc(100vw - 16px);
+      }
+      .footer-bar {
+        font-size: 10px;
+        padding: 4px 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-badge">MSGÁS · Rede</div>
+      <div class="rede-aviso">
+        MAPA REPRESENTATIVO DA REDE GÁS NATURAL DA MSGÁS – AVISO: Antes de executar qualquer obra em avenidas ou ruas que tenha tubulação de gás enterrada, consulte a MSGÁS preventivamente para esclarecimentos e maiores informações.
+      </div>
+    </header>
+
+    <main class="map-stage">
+      <div id="mapa" role="region" aria-label="Mapa da rede de gás natural da MSGÁS"></div>
+
+      <!-- Busca de endereço ou coordenada -->
+      <div class="search-panel">
+        <form class="search-box" id="searchForm" autocomplete="off">
+          <input
+            id="searchInput"
+            type="text"
+            placeholder="Digite um endereço ou lat,lng (ex: -20.4697,-54.6201)"
+            aria-label="Digite um endereço ou coordenada"
+          />
+          <button type="button" id="btnClearSearch" title="Limpar busca" aria-label="Limpar busca" style="display:none;">✕</button>
+          <button type="submit" id="btnSearch" title="Buscar" aria-label="Buscar endereço ou coordenada">🔍</button>
+        </form>
+        <div id="searchResults" class="search-results" role="listbox"></div>
+      </div>
+
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+      <!-- Cards de informação GPS e medição -->
+      <div class="info-pill-stack">
+        <div id="gpsCard" class="info-card">
+          <div class="info-card-header">
+            <span id="gpsCardTitle">📍 Sua Localização Atual</span>
+            <button type="button" class="info-card-close" id="btnCloseGpsCard" aria-label="Fechar">✕</button>
+          </div>
+          <div id="gpsAddressText" class="gps-address"></div>
+          <div id="gpsProximityBadge" class="gps-proximity safe" style="display:none;"></div>
+          <div id="gpsCardText"></div>
+          <div class="info-card-actions">
+            <button type="button" class="mini-btn mini-btn-primary" id="btnOpenEmailModal">✉️ Enviar E-mail (GESMA)</button>
+            <button type="button" class="mini-btn mini-btn-primary" id="btnOpenFormsCard" style="background:#0f766e;border-color:#0f766e;">📋 Formulário (Call Center)</button>
+            <button type="button" class="mini-btn" id="btnCopyMessage">📋 Copiar</button>
+            <button type="button" class="mini-btn" id="btnCopyCoords">Coord.</button>
+          </div>
+        </div>
+
+        <div id="measureCard" class="info-card">
+          <div class="info-card-header">
+            <span>📏 Medição de Distância</span>
+            <button type="button" class="info-card-close" id="btnStopMeasureCard" aria-label="Parar medição">✕</button>
+          </div>
+          <div id="measureCardText">Toque ou clique no mapa para marcar pontos.</div>
+          <div class="info-card-actions">
+            <button type="button" class="mini-btn" id="btnUndoMeasure">Desfazer ponto</button>
+            <button type="button" class="mini-btn" id="btnClearMeasure">Limpar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Menu das 10 cidades -->
+      <div id="cityMenu" class="city-menu" role="menu" aria-label="Centralizar em município">
+        <div class="city-menu-title">Centralizar mapa</div>
+        <div id="cityMenuList"></div>
+      </div>
+
+      <!-- Botões flutuantes inferiores direitos -->
+      <div class="fab-dock">
+        <div class="tools-row">
+          <button type="button" class="tool-btn btn-rede active-ring" id="btnToggleRede" title="Exibir/Ocultar Rede de Gás" aria-label="Exibir ou ocultar rede de gás">🔵</button>
+          <button type="button" class="tool-btn btn-rotulos active-ring" id="btnToggleLabels" title="Exibir/Ocultar Rótulos de Ruas/Bairros" aria-label="Exibir ou ocultar rótulos">🏷️</button>
+          <button type="button" class="tool-btn btn-medir" id="btnMeasure" title="Medir Distância" aria-label="Medir distância">📏</button>
+          <button type="button" class="tool-btn btn-satelite" id="btnSatellite" title="Alternar entre Satélite e Mapa" aria-label="Alternar entre satélite e mapa">🛰️</button>
+          <button type="button" class="tool-btn btn-cidades" id="btnCities" title="Centralizar mapa em município" aria-label="Centralizar mapa em município">🏙️</button>
+        </div>
+
+        <div class="gps-cta-group">
+          <button type="button" class="btn-watch" id="btnWatchGps" title="Acompanhar localização em tempo real" aria-pressed="false">
+            <span>🔄</span>
+            <span class="label-txt">Acompanhar</span>
+          </button>
+          <button type="button" class="btn-gps-main" id="btnLocateMe" title="Puxar minha localização atual via GPS">
+            <span>📍</span>
+            <span id="btnLocateLabel">Puxar Localização</span>
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer-bar">
+      <span>Fonte da rede: <strong>nossarede.msgas.com.br/showmapa</strong> · Mapa: OpenStreetMap / Esri</span>
+    </footer>
+  </div>
+
+  <!-- Modal de Aviso de Obra por E-mail para GESMA -->
+  <div id="emailModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="emailModalTitle">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title" id="emailModalTitle">✉️ Aviso de Obra — GESMA</div>
+          <div class="modal-subtitle">Destino: gesma@msgas.com.br</div>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseEmailModal" aria-label="Fechar formulário">✕</button>
+      </div>
+      <form id="emailForm" class="modal-body" novalidate>
+        <div id="modalLocalResumo" class="modal-resumo"></div>
+
+        <div class="field-group">
+          <label for="obraData">Data da obra *</label>
+          <input id="obraData" type="date" required />
+        </div>
+
+        <div class="field-group">
+          <label for="obraEmpresa">Nome da empresa *</label>
+          <input id="obraEmpresa" type="text" placeholder="Ex.: Construtora / Concessionária" required />
+        </div>
+
+        <div class="field-group">
+          <label for="obraTipo">Tipo de serviço *</label>
+          <select id="obraTipo" required>
+            <option value="">Selecione o tipo de serviço...</option>
+            <option value="Água">1) Água</option>
+            <option value="Esgoto">2) Esgoto</option>
+            <option value="Telefonia/Fibra Ótica">3) Telefonia/Fibra Ótica</option>
+            <option value="Drenagem Urbana">4) Drenagem Urbana</option>
+            <option value="Rede Elétrica">5) Rede Elétrica</option>
+            <option value="Sinalização Vertical">6) Sinalização Vertical</option>
+            <option value="Outros">7) Outros (especificar)</option>
+          </select>
+        </div>
+
+        <div class="field-group" id="obraOutrosGroup" style="display:none;">
+          <label for="obraOutrosTexto">Especifique o tipo de serviço *</label>
+          <input id="obraOutrosTexto" type="text" placeholder="Descreva qual serviço será executado" />
+        </div>
+
+        <div class="field-group">
+          <label for="obraDescricao">Relato / Descrição do problema ou obra</label>
+          <textarea id="obraDescricao" rows="3" placeholder="Descreva o problema, ocorrência ou detalhes da obra no local..."></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="submit" class="modal-btn-main" id="btnSendEmailPrimary">✉️ Enviar E-mail para GESMA</button>
+          <button type="button" class="modal-btn-main" id="btnOpenFormsModal" style="background:#0f766e;">📋 Abrir Formulário Online (Call Center)</button>
+          <div class="modal-actions-secondary" id="desktopEmailOptions">
+            <button type="button" class="mini-btn" id="btnOpenGmail">🌐 Gmail (aba)</button>
+            <button type="button" class="mini-btn" id="btnOpenMailtoApp">📧 App E-mail (Outlook)</button>
+            <button type="button" class="mini-btn" id="btnCopyEmailBody">📋 Copiar texto</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+    (function () {
+      const REDE_DATA = __REDE_GEOJSON__;
+      const CIDADES_DATA = __CIDADES_JSON__;
+      const META_DATA = __META_JSON__;
+
+      const initialCenter = parseLatLng(META_DATA.defaultCenter || "-20.459574,-54.603473");
+      const initialZoom = Number(META_DATA.defaultZoom || 15);
+
+      const map = L.map("mapa", {
+        center: [initialCenter.lat, initialCenter.lng],
+        zoom: initialZoom,
+        zoomControl: false
+      });
+
+      L.control.zoom({ position: "bottomleft" }).addTo(map);
+
+      // Camadas base gratuitas (sem chave de API)
+      const osmLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 20,
+        attribution: "© OpenStreetMap"
+      });
+
+      const satelliteLayer = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        {
+          maxZoom: 19,
+          attribution: "Esri, Maxar"
+        }
+      );
+
+      const labelsOverlay = L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png",
+        {
+          maxZoom: 20,
+          pane: "overlayPane",
+          attribution: "© CARTO"
+        }
+      );
+
+      let isSatellite = false;
+      let labelsVisible = true;
+      let redeVisible = true;
+
+      osmLayer.addTo(map);
+
+      // Renderizador Canvas para manter 60fps com milhares de linhas no celular e PC
+      const canvasRenderer = L.canvas({ padding: 0.5 });
+      const redeLayer = L.geoJSON(REDE_DATA, {
+        renderer: canvasRenderer,
+        style: function (feature) {
+          const color = (feature && feature.properties && feature.properties.strokeColor) || "#000080";
+          return {
+            color: color,
+            weight: 3.5,
+            opacity: 0.92
+          };
+        }
+      }).addTo(map);
+
+      // Elementos de UI
+      const toastEl = document.getElementById("toast");
+      const btnLocateMe = document.getElementById("btnLocateMe");
+      const btnLocateLabel = document.getElementById("btnLocateLabel");
+      const btnWatchGps = document.getElementById("btnWatchGps");
+      const gpsCard = document.getElementById("gpsCard");
+      const gpsCardTitle = document.getElementById("gpsCardTitle");
+      const gpsAddressText = document.getElementById("gpsAddressText");
+      const gpsProximityBadge = document.getElementById("gpsProximityBadge");
+      const gpsCardText = document.getElementById("gpsCardText");
+      const btnCloseGpsCard = document.getElementById("btnCloseGpsCard");
+      const btnOpenEmailModal = document.getElementById("btnOpenEmailModal");
+      const btnCopyMessage = document.getElementById("btnCopyMessage");
+      const btnCopyCoords = document.getElementById("btnCopyCoords");
+
+      const emailModal = document.getElementById("emailModal");
+      const btnCloseEmailModal = document.getElementById("btnCloseEmailModal");
+      const emailForm = document.getElementById("emailForm");
+      const modalLocalResumo = document.getElementById("modalLocalResumo");
+      const obraDataInput = document.getElementById("obraData");
+      const obraEmpresaInput = document.getElementById("obraEmpresa");
+      const obraTipoSelect = document.getElementById("obraTipo");
+      const obraOutrosGroup = document.getElementById("obraOutrosGroup");
+      const obraOutrosTexto = document.getElementById("obraOutrosTexto");
+      const obraDescricaoInput = document.getElementById("obraDescricao");
+      const btnSendEmailPrimary = document.getElementById("btnSendEmailPrimary");
+      const btnOpenGmail = document.getElementById("btnOpenGmail");
+      const btnOpenMailtoApp = document.getElementById("btnOpenMailtoApp");
+      const btnCopyEmailBody = document.getElementById("btnCopyEmailBody");
+      const EMAIL_DESTINO_GESMA = "gesma@msgas.com.br";
+
+      let toastTimer = null;
+      function showToast(msg, type) {
+        toastEl.textContent = msg;
+        toastEl.className = "toast visible" + (type ? " " + type : "");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          toastEl.classList.remove("visible");
+        }, 5000);
+      }
+
+      function parseLatLng(str) {
+        const parts = String(str).split(",");
+        return {
+          lat: parseFloat(parts[0].trim()),
+          lng: parseFloat(parts[1].trim())
+        };
+      }
+
+      // === ÍNDICE GEOMÉTRICO DA REDE PARA DISTÂNCIA ATÉ A TUBULAÇÃO MAIS PRÓXIMA ===
+      const RAIO_PROXIMIDADE_METROS = 50;
+      const redeIndex = [];
+
+      (function construirIndiceRede() {
+        const feats = (REDE_DATA && REDE_DATA.features) || [];
+        for (let i = 0; i < feats.length; i++) {
+          const geom = feats[i] && feats[i].geometry;
+          if (!geom || !geom.coordinates) continue;
+          const linhas =
+            geom.type === "LineString"
+              ? [geom.coordinates]
+              : geom.type === "MultiLineString"
+              ? geom.coordinates
+              : [];
+          for (let l = 0; l < linhas.length; l++) {
+            const pts = linhas[l];
+            if (!Array.isArray(pts) || pts.length < 2) continue;
+            let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+            for (let p = 0; p < pts.length; p++) {
+              const lng = pts[p][0];
+              const lat = pts[p][1];
+              if (lat < minLat) minLat = lat;
+              if (lat > maxLat) maxLat = lat;
+              if (lng < minLng) minLng = lng;
+              if (lng > maxLng) maxLng = lng;
+            }
+            redeIndex.push({ minLat, maxLat, minLng, maxLng, pts });
+          }
+        }
+      })();
+
+      function encontrarTubulacaoMaisProxima(lat, lng) {
+        if (redeIndex.length === 0) return null;
+        const cosLat = Math.cos((lat * Math.PI) / 180) || 1;
+        let melhorDist = Infinity;
+        let melhorPonto = null;
+
+        for (let i = 0; i < redeIndex.length; i++) {
+          const item = redeIndex[i];
+          if (melhorDist < Infinity) {
+            const margemGraus = melhorDist / 110500 + 0.0005;
+            if (
+              lat < item.minLat - margemGraus ||
+              lat > item.maxLat + margemGraus ||
+              lng < item.minLng - margemGraus / cosLat ||
+              lng > item.maxLng + margemGraus / cosLat
+            ) {
+              continue;
+            }
+          }
+
+          const pts = item.pts;
+          for (let j = 0; j < pts.length - 1; j++) {
+            const lng1 = pts[j][0], lat1 = pts[j][1];
+            const lng2 = pts[j + 1][0], lat2 = pts[j + 1][1];
+
+            const ax = (lng1 - lng) * cosLat;
+            const ay = lat1 - lat;
+            const bx = (lng2 - lng) * cosLat;
+            const by = lat2 - lat;
+
+            const dx = bx - ax;
+            const dy = by - ay;
+            const lenSq = dx * dx + dy * dy;
+            let t = 0;
+            if (lenSq > 0) {
+              t = -(ax * dx + ay * dy) / lenSq;
+              if (t < 0) t = 0;
+              else if (t > 1) t = 1;
+            }
+
+            const projLat = lat1 + t * (lat2 - lat1);
+            const projLng = lng1 + t * (lng2 - lng1);
+            const d = map.distance([lat, lng], [projLat, projLng]);
+            if (d < melhorDist) {
+              melhorDist = d;
+              melhorPonto = [projLat, projLng];
+            }
+          }
+        }
+
+        if (!melhorPonto) return null;
+        return { distanciaMetros: melhorDist, pontoMaisProximo: melhorPonto };
+      }
+
+      function formatarDistanciaCurta(metros) {
+        if (metros >= 1000) {
+          return (metros / 1000).toFixed(2).replace(".", ",") + " km";
+        }
+        return Math.round(metros) + " m";
+      }
+
+      function gerarLinkMapaObra(lat, lng) {
+        const base =
+          location.protocol === "https:"
+            ? location.origin + location.pathname
+            : META_DATA.publicBaseUrl || "https://mapa-rede-ms.github.io/";
+        const baseLimpa = base.endsWith("/") || base.endsWith(".html") ? base : base + "/";
+        return baseLimpa + "?lat=" + lat.toFixed(6) + "&lng=" + lng.toFixed(6) + "&z=17";
+      }
+
+      async function copiarTextoSeguro(texto) {
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(texto);
+            return true;
+          }
+        } catch (e) {}
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = texto;
+          ta.setAttribute("readonly", "");
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.select();
+          const ok = document.execCommand("copy");
+          document.body.removeChild(ta);
+          return ok;
+        } catch (e) {
+          return false;
+        }
+      }
+
+      // === CAMADA DE GPS UNIFICADA (PC E CELULAR) + MENSAGEM DE OBRA ===
+      let gpsMarker = null;
+      let gpsAccuracyCircle = null;
+      let nearestPipeLine = null;
+      let nearestPipeDot = null;
+      let lastCoords = null;
+      let watchId = null;
+      let reverseReqSeq = 0;
+
+      const gpsIcon = L.divIcon({
+        className: "",
+        html: '<div class="gps-dot-wrapper"><div class="gps-dot-pulse"></div><div class="gps-dot-core"></div></div>',
+        iconSize: [22, 22],
+        iconAnchor: [11, 11]
+      });
+
+      function montarMensagemObra(info) {
+        if (!info) return "";
+        const coordTxt = info.lat.toFixed(6) + "," + info.lng.toFixed(6);
+        const localTxt = info.endereco || "coordenadas " + coordTxt;
+        const distTxt =
+          typeof info.distMetros === "number"
+            ? formatarDistanciaCurta(info.distMetros)
+            : "distância não calculada";
+        const linkMapa = gerarLinkMapaObra(info.lat, info.lng);
+
+        if (typeof info.distMetros === "number" && info.distMetros <= RAIO_PROXIMIDADE_METROS) {
+          return (
+            "Olá! Atenção: haverá obra no endereço " +
+            localTxt +
+            " (GPS: " +
+            coordTxt +
+            "). Conforme consulta ao mapa representativo da rede de gás natural da MSGÁS, há tubulação de gás natural próxima ao local, a aproximadamente " +
+            distTxt +
+            " de distância. Recomenda-se consulta preventiva à MSGÁS antes da escavação. Ver no mapa da rede: " +
+            linkMapa
+          );
+        }
+
+        return (
+          "Olá! Informo que haverá obra no endereço " +
+          localTxt +
+          " (GPS: " +
+          coordTxt +
+          "). Conforme consulta ao mapa representativo da rede de gás natural da MSGÁS, não há tubulação aparente nas proximidades imediatas do local — a tubulação mais próxima registrada no mapa está a aproximadamente " +
+          distTxt +
+          ". Ver no mapa da rede: " +
+          linkMapa
+        );
+      }
+
+      function atualizarCardObra() {
+        if (!lastCoords) return;
+        const coordText = lastCoords.lat.toFixed(6) + "," + lastCoords.lng.toFixed(6);
+        const accSuffix = lastCoords.acc > 0 ? " (±" + lastCoords.acc + " m)" : "";
+        gpsCardText.textContent = "Coord: " + coordText + accSuffix;
+
+        if (lastCoords.endereco) {
+          gpsAddressText.textContent = "Endereço: " + lastCoords.endereco;
+          gpsAddressText.style.display = "block";
+        } else if (lastCoords.buscandoEndereco) {
+          gpsAddressText.textContent = "Buscando nome da rua...";
+          gpsAddressText.style.display = "block";
+        } else {
+          gpsAddressText.style.display = "none";
+        }
+
+        if (typeof lastCoords.distMetros === "number") {
+          const distTxt = formatarDistanciaCurta(lastCoords.distMetros);
+          const perto = lastCoords.distMetros <= RAIO_PROXIMIDADE_METROS;
+          gpsProximityBadge.className = "gps-proximity " + (perto ? "warn" : "safe");
+          gpsProximityBadge.textContent = perto
+            ? "⚠️ Tubulação próxima: a ~" + distTxt + " daqui"
+            : "✅ Sem tubulação próxima (mais próxima a ~" + distTxt + ")";
+          gpsProximityBadge.style.display = "block";
+        } else {
+          gpsProximityBadge.style.display = "none";
+        }
+
+        gpsCard.classList.add("visible");
+        if (emailModal.classList.contains("open")) {
+          atualizarResumoModal();
+        }
+      }
+
+      async function buscarEnderecoReverso(lat, lng, seqId) {
+        try {
+          const url =
+            "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=" +
+            encodeURIComponent(lat.toFixed(6)) +
+            "&lon=" +
+            encodeURIComponent(lng.toFixed(6));
+          const resp = await fetch(url, { headers: { "Accept-Language": "pt-BR" } });
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          const data = await resp.json();
+          if (seqId !== reverseReqSeq || !lastCoords) return;
+
+          const addr = data && data.address ? data.address : {};
+          const rua = addr.road || addr.pedestrian || addr.residential || addr.highway || "";
+          const numero = addr.house_number ? ", " + addr.house_number : "";
+          const bairro = addr.suburb || addr.neighbourhood || addr.quarter || "";
+          const cidade = addr.city || addr.town || addr.municipality || "";
+          const partes = [];
+          if (rua) partes.push(rua + numero);
+          if (bairro) partes.push(bairro);
+          if (cidade) partes.push(cidade);
+
+          lastCoords.endereco = partes.length > 0 ? partes.join(" - ") : data.display_name || "";
+          lastCoords.buscandoEndereco = false;
+          atualizarCardObra();
+        } catch (e) {
+          if (seqId !== reverseReqSeq || !lastCoords) return;
+          lastCoords.buscandoEndereco = false;
+          atualizarCardObra();
+        }
+      }
+
+      function desenharGuiaTubulacao(lat, lng, prox) {
+        if (nearestPipeLine) {
+          map.removeLayer(nearestPipeLine);
+          nearestPipeLine = null;
+        }
+        if (nearestPipeDot) {
+          map.removeLayer(nearestPipeDot);
+          nearestPipeDot = null;
+        }
+        if (!prox || !prox.pontoMaisProximo) return;
+
+        const perto = prox.distanciaMetros <= RAIO_PROXIMIDADE_METROS;
+        const cor = perto ? "#dc2626" : "#ea580c";
+        nearestPipeLine = L.polyline([[lat, lng], prox.pontoMaisProximo], {
+          color: cor,
+          weight: 2.5,
+          dashArray: "5, 6",
+          opacity: 0.9
+        }).addTo(map);
+
+        nearestPipeDot = L.circleMarker(prox.pontoMaisProximo, {
+          radius: 5,
+          color: cor,
+          fillColor: "#ffffff",
+          fillOpacity: 1,
+          weight: 2.5
+        }).addTo(map);
+      }
+
+      function analisarPontoObra(lat, lng, acc, tituloCard, centralizar, zoomAlvo, enderecoConhecido) {
+        const prox = encontrarTubulacaoMaisProxima(lat, lng);
+        lastCoords = {
+          lat: lat,
+          lng: lng,
+          acc: Math.round(acc || 0),
+          distMetros: prox ? prox.distanciaMetros : null,
+          endereco: enderecoConhecido || "",
+          buscandoEndereco: !enderecoConhecido
+        };
+
+        gpsCardTitle.textContent = tituloCard || "📍 Sua Localização Atual";
+        const latlng = [lat, lng];
+        if (!gpsMarker) {
+          gpsMarker = L.marker(latlng, { icon: gpsIcon, zIndexOffset: 1000 }).addTo(map);
+        } else {
+          gpsMarker.setLatLng(latlng);
+        }
+
+        if (lastCoords.acc > 0) {
+          if (!gpsAccuracyCircle) {
+            gpsAccuracyCircle = L.circle(latlng, {
+              radius: lastCoords.acc,
+              color: "#1a73e8",
+              weight: 1.5,
+              fillColor: "#1a73e8",
+              fillOpacity: 0.14
+            }).addTo(map);
+          } else {
+            gpsAccuracyCircle.setLatLng(latlng);
+            gpsAccuracyCircle.setRadius(lastCoords.acc);
+          }
+        } else if (gpsAccuracyCircle) {
+          map.removeLayer(gpsAccuracyCircle);
+          gpsAccuracyCircle = null;
+        }
+
+        desenharGuiaTubulacao(lat, lng, prox);
+
+        if (centralizar) {
+          const z = zoomAlvo || Math.max(map.getZoom(), 17);
+          map.setView(latlng, z, { animate: true });
+        }
+
+        atualizarCardObra();
+
+        if (!enderecoConhecido) {
+          reverseReqSeq += 1;
+          buscarEnderecoReverso(lat, lng, reverseReqSeq);
+        }
+      }
+
+      function aplicarPosicaoGps(position, centralizar) {
+        analisarPontoObra(
+          position.coords.latitude,
+          position.coords.longitude,
+          position.coords.accuracy || 0,
+          "📍 Sua Localização Atual",
+          centralizar,
+          Math.max(map.getZoom(), 17),
+          ""
+        );
+      }
+
+      function ehProtocoloLocalInseguro() {
+        return location.protocol === "content:" || location.protocol === "file:";
+      }
+
+      function tratarErroGps(err) {
+        let msg = "Não foi possível obter a localização.";
+        const detalhe = err && err.message ? String(err.message).toLowerCase() : "";
+        if (ehProtocoloLocalInseguro() || detalhe.includes("secure origin")) {
+          msg = "O celular bloqueia o GPS em arquivo local (" + location.protocol + "). Publique o index.html em um link HTTPS (Netlify Drop ou GitHub Pages) e abra pelo link.";
+        } else if (err && err.code === 1) {
+          msg = "Permissão de localização negada. Libere o GPS para este site nas configurações do navegador.";
+        } else if (err && err.code === 2) {
+          msg = "Sinal de localização indisponível no momento. Verifique se o GPS está ativo.";
+        } else if (err && err.code === 3) {
+          msg = "Tempo esgotado ao buscar localização. Tente novamente em local aberto.";
+        }
+        showToast(msg, "error");
+      }
+
+      function verificarContextoSeguro() {
+        const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+        if (!("geolocation" in navigator)) {
+          showToast("Este navegador não suporta geolocalização (GPS).", "error");
+          return false;
+        }
+        if (ehProtocoloLocalInseguro() || (!window.isSecureContext && !isLocalhost)) {
+          showToast(
+            "GPS bloqueado ao abrir arquivo direto (" + location.protocol + "). Hospede em HTTPS (ex: Netlify Drop ou GitHub Pages) e abra pelo link.",
+            "error"
+          );
+          return false;
+        }
+        return true;
+      }
+
+      function puxarLocalizacao() {
+        if (!verificarContextoSeguro()) return;
+        btnLocateMe.classList.add("loading");
+        btnLocateLabel.textContent = "Buscando GPS...";
+
+        navigator.geolocation.getCurrentPosition(
+          function (pos) {
+            btnLocateMe.classList.remove("loading");
+            btnLocateLabel.textContent = "Puxar Localização";
+            aplicarPosicaoGps(pos, true);
+            showToast("Localização atual aplicada no mapa!", "success");
+          },
+          function (err) {
+            btnLocateMe.classList.remove("loading");
+            btnLocateLabel.textContent = "Puxar Localização";
+            tratarErroGps(err);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+          }
+        );
+      }
+
+      function alternarAcompanhamentoGps() {
+        if (watchId !== null) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+          btnWatchGps.classList.remove("active");
+          btnWatchGps.setAttribute("aria-pressed", "false");
+          showToast("Acompanhamento em tempo real pausado.", "");
+          return;
+        }
+        if (!verificarContextoSeguro()) return;
+
+        btnWatchGps.classList.add("active");
+        btnWatchGps.setAttribute("aria-pressed", "true");
+        showToast("Acompanhando sua localização em tempo real...", "success");
+
+        let primeiraVez = true;
+        watchId = navigator.geolocation.watchPosition(
+          function (pos) {
+            aplicarPosicaoGps(pos, primeiraVez || true);
+            primeiraVez = false;
+          },
+          function (err) {
+            tratarErroGps(err);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+          }
+        );
+      }
+
+      btnLocateMe.addEventListener("click", puxarLocalizacao);
+      btnWatchGps.addEventListener("click", alternarAcompanhamentoGps);
+      btnCloseGpsCard.addEventListener("click", () => gpsCard.classList.remove("visible"));
+
+      function ehDispositivoMovel() {
+        return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+      }
+
+      function formatarDataBr(isoDate) {
+        if (!isoDate || !isoDate.includes("-")) return isoDate || "";
+        const p = isoDate.split("-");
+        return p[2] + "/" + p[1] + "/" + p[0];
+      }
+
+      function atualizarResumoModal() {
+        if (!lastCoords) return;
+        const coordTxt = lastCoords.lat.toFixed(6) + "," + lastCoords.lng.toFixed(6);
+        const localTxt = lastCoords.endereco || "Coordenadas " + coordTxt;
+        const distTxt =
+          typeof lastCoords.distMetros === "number"
+            ? formatarDistanciaCurta(lastCoords.distMetros)
+            : "não calculada";
+        const perto =
+          typeof lastCoords.distMetros === "number" &&
+          lastCoords.distMetros <= RAIO_PROXIMIDADE_METROS;
+        modalLocalResumo.textContent =
+          "Local: " +
+          localTxt +
+          " | " +
+          (perto
+            ? "Atenção: tubulação próxima (~" + distTxt + ")"
+            : "Sem tubulação aparente próxima (mais próxima a ~" + distTxt + ")");
+      }
+
+      function abrirModalEmail() {
+        if (!lastCoords) {
+          showToast("Primeiro clique em Puxar Localização ou busque um local.", "error");
+          return;
+        }
+        if (!obraDataInput.value) {
+          const hoje = new Date();
+          const yyyy = hoje.getFullYear();
+          const mm = String(hoje.getMonth() + 1).padStart(2, "0");
+          const dd = String(hoje.getDate()).padStart(2, "0");
+          obraDataInput.value = yyyy + "-" + mm + "-" + dd;
+        }
+        atualizarResumoModal();
+        const mobile = ehDispositivoMovel();
+        btnSendEmailPrimary.textContent = mobile
+          ? "✉️ Abrir no App de E-mail"
+          : "🌐 Abrir no Outlook Web (nova aba)";
+        btnOpenGmail.style.display = mobile ? "none" : "inline-flex";
+        btnOpenMailtoApp.style.display = mobile ? "none" : "inline-flex";
+        emailModal.classList.add("open");
+      }
+
+      function fecharModalEmail() {
+        emailModal.classList.remove("open");
+      }
+
+      function validarEConstruirEmail() {
+        if (!lastCoords) {
+          showToast("Localização não definida.", "error");
+          return null;
+        }
+        const dataVal = obraDataInput.value.trim();
+        const empresaVal = obraEmpresaInput.value.trim();
+        const tipoVal = obraTipoSelect.value.trim();
+        const outrosVal = obraOutrosTexto.value.trim();
+        const descricaoVal = obraDescricaoInput.value.trim();
+
+        if (!dataVal) {
+          showToast("Informe a data da obra.", "error");
+          obraDataInput.focus();
+          return null;
+        }
+        if (!empresaVal) {
+          showToast("Informe o nome da empresa.", "error");
+          obraEmpresaInput.focus();
+          return null;
+        }
+        if (!tipoVal) {
+          showToast("Selecione o tipo de serviço.", "error");
+          obraTipoSelect.focus();
+          return null;
+        }
+        if (tipoVal === "Outros" && !outrosVal) {
+          showToast("Especifique o tipo de serviço no campo 'Outros'.", "error");
+          obraOutrosTexto.focus();
+          return null;
+        }
+
+        const dataBr = formatarDataBr(dataVal);
+        const servicoFinal = tipoVal === "Outros" ? "Outros - " + outrosVal : tipoVal;
+        const coordTxt = lastCoords.lat.toFixed(6) + "," + lastCoords.lng.toFixed(6);
+        const localTxt = lastCoords.endereco || "coordenadas " + coordTxt;
+        const distTxt =
+          typeof lastCoords.distMetros === "number"
+            ? formatarDistanciaCurta(lastCoords.distMetros)
+            : "distância não calculada";
+        const linkMapa = gerarLinkMapaObra(lastCoords.lat, lastCoords.lng);
+        const perto =
+          typeof lastCoords.distMetros === "number" &&
+          lastCoords.distMetros <= RAIO_PROXIMIDADE_METROS;
+
+        const situacaoRede = perto
+          ? "ATENÇÃO: Conforme consulta ao mapa representativo da rede de gás natural da MSGÁS, há tubulação de gás natural próxima ao local, a aproximadamente " +
+            distTxt +
+            " de distância. Solicita-se orientação preventiva antes da escavação."
+          : "Conforme consulta ao mapa representativo da rede de gás natural da MSGÁS, não há tubulação aparente nas proximidades imediatas do local — a tubulação mais próxima registrada no mapa está a aproximadamente " +
+            distTxt +
+            ".";
+
+        const assunto =
+          "Aviso de Obra - " + empresaVal + " - " + servicoFinal + " - " + dataBr;
+
+        const linhasCorpo = [
+          "Olá, equipe GESMA!",
+          "",
+          "Informo a programação de obra / relato conforme dados abaixo:",
+          "- Empresa: " + empresaVal,
+          "- Data da obra: " + dataBr,
+          "- Tipo de serviço: " + servicoFinal,
+          "- Endereço / Local: " + localTxt,
+          "- Coordenadas GPS: " + coordTxt
+        ];
+        if (descricaoVal) {
+          linhasCorpo.push("- Relato / Descrição: " + descricaoVal);
+        }
+        linhasCorpo.push(
+          "",
+          situacaoRede,
+          "",
+          "Ver local da obra no mapa da rede MSGÁS:",
+          linkMapa
+        );
+        const corpo = linhasCorpo.join("\n");
+
+        return { para: EMAIL_DESTINO_GESMA, assunto, corpo };
+      }
+
+      function abrirMailto(dadosEmail) {
+        const url =
+          "mailto:" +
+          encodeURIComponent(dadosEmail.para) +
+          "?subject=" +
+          encodeURIComponent(dadosEmail.assunto) +
+          "&body=" +
+          encodeURIComponent(dadosEmail.corpo);
+        window.location.href = url;
+      }
+
+      function abrirOutlookWeb(dadosEmail) {
+        const url =
+          "https://outlook.office.com/mail/deeplink/compose?to=" +
+          encodeURIComponent(dadosEmail.para) +
+          "&subject=" +
+          encodeURIComponent(dadosEmail.assunto) +
+          "&body=" +
+          encodeURIComponent(dadosEmail.corpo);
+        window.open(url, "_blank", "noopener");
+      }
+
+      function abrirGmailWeb(dadosEmail) {
+        const url =
+          "https://mail.google.com/mail/?view=cm&fs=1&to=" +
+          encodeURIComponent(dadosEmail.para) +
+          "&su=" +
+          encodeURIComponent(dadosEmail.assunto) +
+          "&body=" +
+          encodeURIComponent(dadosEmail.corpo);
+        window.open(url, "_blank", "noopener");
+      }
+
+      obraTipoSelect.addEventListener("change", () => {
+        const isOutros = obraTipoSelect.value === "Outros";
+        obraOutrosGroup.style.display = isOutros ? "flex" : "none";
+        obraOutrosTexto.required = isOutros;
+        if (!isOutros) {
+          obraOutrosTexto.value = "";
+        } else {
+          obraOutrosTexto.focus();
+        }
+      });
+
+      btnOpenEmailModal.addEventListener("click", abrirModalEmail);
+      btnCloseEmailModal.addEventListener("click", fecharModalEmail);
+      emailModal.addEventListener("click", (e) => {
+        if (e.target === emailModal) fecharModalEmail();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && emailModal.classList.contains("open")) {
+          fecharModalEmail();
+        }
+      });
+
+      emailForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const dadosEmail = validarEConstruirEmail();
+        if (!dadosEmail) return;
+        if (ehDispositivoMovel()) {
+          abrirMailto(dadosEmail);
+        } else {
+          abrirOutlookWeb(dadosEmail);
+        }
+        fecharModalEmail();
+        showToast("E-mail preparado para " + EMAIL_DESTINO_GESMA + "!", "success");
+      });
+
+      btnOpenGmail.addEventListener("click", () => {
+        const dadosEmail = validarEConstruirEmail();
+        if (!dadosEmail) return;
+        abrirGmailWeb(dadosEmail);
+        fecharModalEmail();
+        showToast("Abrindo Gmail em nova aba...", "success");
+      });
+
+      btnOpenMailtoApp.addEventListener("click", () => {
+        const dadosEmail = validarEConstruirEmail();
+        if (!dadosEmail) return;
+        abrirMailto(dadosEmail);
+        fecharModalEmail();
+        showToast("Abrindo aplicativo de e-mail...", "success");
+      });
+
+      btnCopyEmailBody.addEventListener("click", async () => {
+        const dadosEmail = validarEConstruirEmail();
+        if (!dadosEmail) return;
+        const completo =
+          "Para: " +
+          dadosEmail.para +
+          "\nAssunto: " +
+          dadosEmail.assunto +
+          "\n\n" +
+          dadosEmail.corpo;
+        const ok = await copiarTextoSeguro(completo);
+        showToast(
+          ok ? "Texto do e-mail copiado!" : "Não foi possível copiar automaticamente.",
+          ok ? "success" : "error"
+        );
+      });
+
+      const URL_FORMULARIO_CALLCENTER =
+        "https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=LQyD4OQe90SrZZNWxoaDxpAAR5Glx2ZChjfSSBHdqRNUMkg3SEtSSExaSFczU1c2MEZVSzdMR0RZVCQlQCN0PWcu";
+
+      async function abrirFormularioCallCenter() {
+        let copiou = false;
+        if (lastCoords) {
+          const resumo = montarMensagemObra(lastCoords);
+          copiou = await copiarTextoSeguro(resumo);
+        }
+        window.open(URL_FORMULARIO_CALLCENTER, "_blank", "noopener");
+        showToast(
+          copiou
+            ? "Abrindo formulário! Dados do local copiados para colar na descrição."
+            : "Abrindo formulário online do Call Center...",
+          "success"
+        );
+      }
+
+      const btnOpenFormsCard = document.getElementById("btnOpenFormsCard");
+      const btnOpenFormsModal = document.getElementById("btnOpenFormsModal");
+      if (btnOpenFormsCard) btnOpenFormsCard.addEventListener("click", abrirFormularioCallCenter);
+      if (btnOpenFormsModal) {
+        btnOpenFormsModal.addEventListener("click", () => {
+          fecharModalEmail();
+          abrirFormularioCallCenter();
+        });
+      }
+
+      btnCopyMessage.addEventListener("click", async () => {
+        if (!lastCoords) return;
+        const msg = montarMensagemObra(lastCoords);
+        const ok = await copiarTextoSeguro(msg);
+        if (ok) {
+          showToast("Resumo da obra copiado!", "success");
+        } else {
+          showToast("Não foi possível copiar automaticamente.", "error");
+        }
+      });
+
+      btnCopyCoords.addEventListener("click", async () => {
+        if (!lastCoords) return;
+        const text = lastCoords.lat.toFixed(6) + "," + lastCoords.lng.toFixed(6);
+        const ok = await copiarTextoSeguro(text);
+        showToast(ok ? "Coordenada copiada: " + text : "Coordenada: " + text, ok ? "success" : "");
+      });
+
+      // === BUSCA DE ENDEREÇO E COORDENADAS ===
+      const searchForm = document.getElementById("searchForm");
+      const searchInput = document.getElementById("searchInput");
+      const searchResults = document.getElementById("searchResults");
+      const btnClearSearch = document.getElementById("btnClearSearch");
+      let searchMarker = null;
+
+      function colocarMarcadorBusca(lat, lng, zoom, titulo) {
+        const z = zoom || 17;
+        if (searchMarker) {
+          map.removeLayer(searchMarker);
+        }
+        searchMarker = L.marker([lat, lng]).addTo(map);
+        searchMarker.bindPopup(document.createTextNode(titulo || "Local encontrado")).openPopup();
+        map.setView([lat, lng], z, { animate: true });
+        const enderecoLimpo =
+          titulo && !String(titulo).startsWith("Coordenada:") ? titulo : "";
+        analisarPontoObra(lat, lng, 0, "📍 Local Pesquisado", false, z, enderecoLimpo);
+      }
+
+      function limparResultadosBusca() {
+        searchResults.innerHTML = "";
+        searchResults.classList.remove("open");
+      }
+
+      searchInput.addEventListener("input", () => {
+        btnClearSearch.style.display = searchInput.value ? "inline-flex" : "none";
+      });
+
+      btnClearSearch.addEventListener("click", () => {
+        searchInput.value = "";
+        btnClearSearch.style.display = "none";
+        limparResultadosBusca();
+        if (searchMarker) {
+          map.removeLayer(searchMarker);
+          searchMarker = null;
+        }
+      });
+
+      async function executarBusca(e) {
+        if (e) e.preventDefault();
+        const termo = searchInput.value.trim();
+        if (!termo) return;
+        limparResultadosBusca();
+
+        // Suporte direto a coordenadas: -20.4697,-54.6201 ou -20.4697, -54.6201, 17z
+        const coordRegex = /^(?<lat>-?\d+(?:\.\d+)?)\s*,\s*(?<lng>-?\d+(?:\.\d+)?)(?:\s*,\s*(?<zoom>\d+)z?)?$/i;
+        const match = termo.match(coordRegex);
+        if (match && match.groups) {
+          const lat = parseFloat(match.groups.lat);
+          const lng = parseFloat(match.groups.lng);
+          const zoom = match.groups.zoom ? parseInt(match.groups.zoom, 10) : 17;
+          if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+            colocarMarcadorBusca(lat, lng, zoom, "Coordenada: " + lat.toFixed(6) + ", " + lng.toFixed(6));
+            return;
+          }
+        }
+
+        // Busca textual via Nominatim (OpenStreetMap) com viés para Mato Grosso do Sul
+        try {
+          const url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&countrycodes=br&viewbox=-58.2,-17.1,-50.9,-24.2&q=" + encodeURIComponent(termo);
+          const resp = await fetch(url, { headers: { "Accept-Language": "pt-BR" } });
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          const lista = await resp.json();
+
+          if (!Array.isArray(lista) || lista.length === 0) {
+            showToast("Endereço não encontrado. Tente incluir cidade/estado ou lat,lng.", "error");
+            return;
+          }
+
+          if (lista.length === 1) {
+            const item = lista[0];
+            colocarMarcadorBusca(parseFloat(item.lat), parseFloat(item.lon), 17, item.display_name);
+            return;
+          }
+
+          lista.forEach((item) => {
+            const div = document.createElement("div");
+            div.className = "search-item";
+            div.setAttribute("role", "option");
+            div.textContent = item.display_name;
+            div.addEventListener("click", () => {
+              searchInput.value = item.display_name;
+              limparResultadosBusca();
+              colocarMarcadorBusca(parseFloat(item.lat), parseFloat(item.lon), 17, item.display_name);
+            });
+            searchResults.appendChild(div);
+          });
+          searchResults.classList.add("open");
+        } catch (err) {
+          showToast("Falha na busca de endereço online. Você ainda pode buscar por lat,lng.", "error");
+        }
+      }
+
+      searchForm.addEventListener("submit", executarBusca);
+
+      // === MENU DAS 10 CIDADES ===
+      const btnCities = document.getElementById("btnCities");
+      const cityMenu = document.getElementById("cityMenu");
+      const cityMenuList = document.getElementById("cityMenuList");
+
+      CIDADES_DATA.forEach((cidade) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "city-option";
+        btn.setAttribute("role", "menuitem");
+        btn.textContent = cidade.nome;
+        btn.addEventListener("click", () => {
+          const coords = parseLatLng(cidade.centerMap);
+          map.setView([coords.lat, coords.lng], Number(cidade.zoom || 14), { animate: true });
+          cityMenu.classList.remove("open");
+          showToast("Mapa centralizado em " + cidade.nome, "");
+        });
+        cityMenuList.appendChild(btn);
+      });
+
+      btnCities.addEventListener("click", (e) => {
+        e.stopPropagation();
+        cityMenu.classList.toggle("open");
+      });
+
+      document.addEventListener("click", (e) => {
+        if (!cityMenu.contains(e.target) && e.target !== btnCities) {
+          cityMenu.classList.remove("open");
+        }
+        if (!e.target.closest(".search-panel")) {
+          limparResultadosBusca();
+        }
+      });
+
+      // === SATÉLITE / RÓTULOS / REDE ===
+      const btnSatellite = document.getElementById("btnSatellite");
+      const btnToggleLabels = document.getElementById("btnToggleLabels");
+      const btnToggleRede = document.getElementById("btnToggleRede");
+
+      btnSatellite.addEventListener("click", () => {
+        isSatellite = !isSatellite;
+        if (isSatellite) {
+          map.removeLayer(osmLayer);
+          satelliteLayer.addTo(map);
+          if (labelsVisible) labelsOverlay.addTo(map);
+          btnSatellite.classList.add("active-ring");
+          showToast("Modo Satélite ativado", "");
+        } else {
+          map.removeLayer(satelliteLayer);
+          if (map.hasLayer(labelsOverlay)) map.removeLayer(labelsOverlay);
+          osmLayer.addTo(map);
+          btnSatellite.classList.remove("active-ring");
+          showToast("Modo Mapa de Ruas ativado", "");
+        }
+      });
+
+      btnToggleLabels.addEventListener("click", () => {
+        labelsVisible = !labelsVisible;
+        btnToggleLabels.classList.toggle("active-ring", labelsVisible);
+        if (isSatellite) {
+          if (labelsVisible) labelsOverlay.addTo(map);
+          else map.removeLayer(labelsOverlay);
+        }
+        showToast(labelsVisible ? "Rótulos ativados (visíveis sobre Satélite)" : "Rótulos ocultos", "");
+      });
+
+      btnToggleRede.addEventListener("click", () => {
+        redeVisible = !redeVisible;
+        btnToggleRede.classList.toggle("active-ring", redeVisible);
+        if (redeVisible) redeLayer.addTo(map);
+        else map.removeLayer(redeLayer);
+        showToast(redeVisible ? "Rede de gás visível" : "Rede de gás oculta", "");
+      });
+
+      // === MEDIR DISTÂNCIA REAL ===
+      const btnMeasure = document.getElementById("btnMeasure");
+      const measureCard = document.getElementById("measureCard");
+      const measureCardText = document.getElementById("measureCardText");
+      const btnStopMeasureCard = document.getElementById("btnStopMeasureCard");
+      const btnUndoMeasure = document.getElementById("btnUndoMeasure");
+      const btnClearMeasure = document.getElementById("btnClearMeasure");
+
+      let measuring = false;
+      let measurePoints = [];
+      let measureMarkers = [];
+      const measureLine = L.polyline([], {
+        color: "#111827",
+        weight: 3,
+        dashArray: "6, 6"
+      });
+
+      function formatarDistancia(metros) {
+        if (metros >= 1000) {
+          return (metros / 1000).toFixed(2).replace(".", ",") + " km";
+        }
+        return Math.round(metros) + " m";
+      }
+
+      function atualizarMedicao() {
+        measureLine.setLatLngs(measurePoints);
+        if (measurePoints.length < 2) {
+          measureCardText.textContent =
+            measurePoints.length === 0
+              ? "Toque no mapa para marcar o ponto inicial."
+              : "1 ponto marcado. Toque no próximo ponto.";
+          return;
+        }
+        let total = 0;
+        for (let i = 1; i < measurePoints.length; i++) {
+          total += map.distance(measurePoints[i - 1], measurePoints[i]);
+        }
+        measureCardText.textContent =
+          "Distância (" + measurePoints.length + " pts): " + formatarDistancia(total);
+      }
+
+      function limparMedicao() {
+        measurePoints = [];
+        measureMarkers.forEach((m) => map.removeLayer(m));
+        measureMarkers = [];
+        measureLine.setLatLngs([]);
+        atualizarMedicao();
+      }
+
+      function alternarMedicao(forcarEstado) {
+        measuring = typeof forcarEstado === "boolean" ? forcarEstado : !measuring;
+        btnMeasure.classList.toggle("active-ring", measuring);
+        if (measuring) {
+          measureLine.addTo(map);
+          measureCard.classList.add("visible");
+          map.getContainer().style.cursor = "crosshair";
+          atualizarMedicao();
+        } else {
+          map.getContainer().style.cursor = "";
+          measureCard.classList.remove("visible");
+          limparMedicao();
+          map.removeLayer(measureLine);
+        }
+      }
+
+      map.on("click", (e) => {
+        if (!measuring) return;
+        measurePoints.push(e.latlng);
+        const ptMarker = L.circleMarker(e.latlng, {
+          radius: 5,
+          color: "#7c3aed",
+          fillColor: "#ffffff",
+          fillOpacity: 1,
+          weight: 2
+        }).addTo(map);
+        measureMarkers.push(ptMarker);
+        atualizarMedicao();
+      });
+
+      btnMeasure.addEventListener("click", () => alternarMedicao());
+      btnStopMeasureCard.addEventListener("click", () => alternarMedicao(false));
+      btnUndoMeasure.addEventListener("click", () => {
+        if (measurePoints.length === 0) return;
+        measurePoints.pop();
+        const lastMarker = measureMarkers.pop();
+        if (lastMarker) map.removeLayer(lastMarker);
+        atualizarMedicao();
+      });
+      btnClearMeasure.addEventListener("click", limparMedicao);
+
+      // === ABERTURA VIA LINK COMPARTILHADO DA OBRA (?lat=...&lng=...&z=...) ===
+      (function carregarPontoDaUrl() {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const latParam = parseFloat(params.get("lat"));
+          const lngParam = parseFloat(params.get("lng"));
+          const zParam = parseInt(params.get("z") || "17", 10);
+          if (
+            !Number.isNaN(latParam) &&
+            !Number.isNaN(lngParam) &&
+            latParam >= -90 &&
+            latParam <= 90 &&
+            lngParam >= -180 &&
+            lngParam <= 180
+          ) {
+            analisarPontoObra(
+              latParam,
+              lngParam,
+              0,
+              "📍 Local da Obra (compartilhado)",
+              true,
+              Number.isNaN(zParam) ? 17 : zParam,
+              ""
+            );
+          }
+        } catch (e) {}
+      })();
+    })();
+  </script>
+</body>
+</html>
